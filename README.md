@@ -1,5 +1,7 @@
 # FlowForge
 
+[![Verify](https://github.com/zasclan/flowforge/actions/workflows/ci.yml/badge.svg)](https://github.com/zasclan/flowforge/actions/workflows/ci.yml)
+
 FlowForge is a cloud-synchronized task execution workspace built with Flutter. It is designed around a typed workflow model rather than a basic checklist: tasks have lifecycle states, priorities, due dates and tags, while the dashboard exposes completion and overdue indicators.
 
 ## Engineering problem
