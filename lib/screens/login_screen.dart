@@ -3,83 +3,143 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  final _name = TextEditingController();
   bool _isLogin = true;
 
-  void _submit() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    bool success;
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    _name.dispose();
+    super.dispose();
+  }
 
-    if (_isLogin) {
-      success = await authProvider.login(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-    } else {
-      success = await authProvider.register(
-        _emailController.text.trim(),
-        _passwordController.text,
-        'User',
-      );
-    }
-
-    if (!success && mounted) {
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    final auth = context.read<AuthProvider>();
+    final ok = _isLogin
+        ? await auth.login(_email.text.trim(), _password.text)
+        : await auth.register(
+            _email.text.trim(), _password.text, _name.text.trim());
+    if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(authProvider.error ?? 'Error')),
-      );
+          SnackBar(content: Text(auth.error ?? 'Authentication failed.')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     return Scaffold(
-      body: Padding(
-        padding: EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.task_alt, size: 80, color: Colors.blue),
-            SizedBox(height: 40),
-            TextField(
-              controller: _emailController,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                              color: const Color(0xff2563eb),
+                              borderRadius: BorderRadius.circular(18)),
+                          child: const Icon(Icons.account_tree_rounded,
+                              color: Colors.white, size: 34),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const Text('FlowForge',
+                          style: TextStyle(
+                              fontSize: 34,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xff0f172a))),
+                      Text(
+                          _isLogin
+                              ? 'Sign in to continue your execution plan.'
+                              : 'Create a private, synchronized workspace.',
+                          style: const TextStyle(
+                              color: Color(0xff64748b), fontSize: 15)),
+                      const SizedBox(height: 28),
+                      if (!_isLogin) ...[
+                        TextFormField(
+                            controller: _name,
+                            decoration: const InputDecoration(
+                                labelText: 'Name',
+                                prefixIcon: Icon(Icons.person_outline_rounded)),
+                            validator: (value) =>
+                                value == null || value.trim().length < 2
+                                    ? 'Enter your name.'
+                                    : null),
+                        const SizedBox(height: 12),
+                      ],
+                      TextFormField(
+                          controller: _email,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                              labelText: 'Email',
+                              prefixIcon: Icon(Icons.mail_outline_rounded)),
+                          validator: (value) =>
+                              value != null && value.contains('@')
+                                  ? null
+                                  : 'Enter a valid email.'),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                          controller: _password,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                              labelText: 'Password',
+                              prefixIcon: Icon(Icons.lock_outline_rounded)),
+                          validator: (value) =>
+                              value != null && value.length >= 6
+                                  ? null
+                                  : 'Use at least 6 characters.'),
+                      const SizedBox(height: 20),
+                      FilledButton(
+                        onPressed: auth.isLoading ? null : _submit,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          child: auth.isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
+                              : Text(_isLogin ? 'Sign in' : 'Create account'),
+                        ),
+                      ),
+                      TextButton(
+                          onPressed: auth.isLoading
+                              ? null
+                              : () => setState(() => _isLogin = !_isLogin),
+                          child: Text(_isLogin
+                              ? 'New here? Create an account'
+                              : 'Already have an account? Sign in')),
+                      const SizedBox(height: 14),
+                      const Text(
+                          'Per-user access is enforced by Firestore security rules.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 12, color: Color(0xff94a3b8))),
+                    ]),
               ),
             ),
-            SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-            ),
-            SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _submit,
-              child: Text(_isLogin ? 'Login' : 'Register'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: Size(double.infinity, 50),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _isLogin = !_isLogin;
-                });
-              },
-              child: Text(
-                  _isLogin ? 'Create account' : 'Already have an account?'),
-            ),
-          ],
+          ),
         ),
       ),
     );
