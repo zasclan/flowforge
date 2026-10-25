@@ -18,4 +18,4 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: dart analyze
-      - run: dart test
+      - run: flutter test
