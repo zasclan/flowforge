@@ -1,19 +1,16 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/task.dart';
+import '../repositories/task_repository.dart';
 
 enum TaskView { all, active, dueSoon, overdue, completed }
 
 class TaskProvider extends ChangeNotifier {
-  TaskProvider({FirebaseFirestore? firestore, FirebaseAuth? auth})
-      : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  TaskProvider({TaskRepository? repository})
+      : _repository = repository ?? FirestoreTaskRepository();
 
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
+  final TaskRepository _repository;
+  StreamSubscription<List<Task>>? _subscription;
   List<Task> _tasks = const [];
   bool _isLoading = false;
   String? _error;
@@ -31,12 +28,6 @@ class TaskProvider extends ChangeNotifier {
   int get overdueCount => _tasks.where((task) => task.isOverdue).length;
   double get completionRate =>
       totalCount == 0 ? 0 : completedCount / totalCount;
-
-  CollectionReference<Map<String, dynamic>>? get _collection {
-    final user = _auth.currentUser;
-    if (user == null) return null;
-    return _firestore.collection('users').doc(user.uid).collection('tasks');
-  }
 
   List<Task> get visibleTasks {
     final now = DateTime.now();
@@ -67,22 +58,14 @@ class TaskProvider extends ChangeNotifier {
   }
 
   void loadTasks() {
-    final collection = _collection;
     _subscription?.cancel();
-    if (collection == null) {
-      _tasks = const [];
-      notifyListeners();
-      return;
-    }
     _isLoading = true;
     _error = null;
     notifyListeners();
-    _subscription =
-        collection.orderBy('createdAt', descending: true).snapshots().listen(
-      (snapshot) {
-        _tasks = snapshot.docs
-            .map((doc) => Task.fromMap(doc.id, doc.data()))
-            .toList();
+    try {
+      _subscription = _repository.watchTasks().listen(
+      (tasks) {
+        _tasks = tasks;
         _isLoading = false;
         _error = null;
         notifyListeners();
@@ -93,6 +76,11 @@ class TaskProvider extends ChangeNotifier {
         notifyListeners();
       },
     );
+    } on StateError catch (error) {
+      _isLoading = false;
+      _error = error.message;
+      notifyListeners();
+    }
   }
 
   void setQuery(String value) {
@@ -112,9 +100,7 @@ class TaskProvider extends ChangeNotifier {
     DateTime? dueDate,
     List<String> tags = const [],
   }) async {
-    final collection = _collection;
     final cleanTitle = title.trim();
-    if (collection == null) throw StateError('Sign in before creating tasks.');
     if (cleanTitle.length < 3) {
       throw ArgumentError('Use at least 3 characters.');
     }
@@ -134,22 +120,16 @@ class TaskProvider extends ChangeNotifier {
       createdAt: now,
       updatedAt: now,
     );
-    await collection.add(task.toMap());
+    await _repository.addTask(task);
   }
 
   Future<void> setStatus(Task task, TaskStatus status) async {
     final now = DateTime.now();
-    await _collection?.doc(task.id).update({
-      'status': status.name,
-      'isCompleted': status == TaskStatus.completed,
-      'completedAt': status == TaskStatus.completed ? now : null,
-      'updatedAt': now,
-      'schemaVersion': 2,
-    });
+    await _repository.updateStatus(task.id, status, now);
   }
 
   Future<void> deleteTask(String taskId) async =>
-      _collection?.doc(taskId).delete();
+      _repository.deleteTask(taskId);
   void clearError() {
     _error = null;
     notifyListeners();

@@ -4,7 +4,7 @@ FlowForge is a cloud-synchronized task execution workspace built with Flutter. I
 
 ## Engineering problem
 
-Small task applications often mix UI state with database documents, trust unvalidated writes and lose compatibility when the data model changes. FlowForge separates the domain model from synchronization state, validates writes at the Firestore boundary and reads the earlier boolean-completion schema for backward compatibility.
+Small task applications often mix UI state with database documents, trust unvalidated writes and lose compatibility when the data model changes. FlowForge separates the domain model, application state and repository boundary, validates writes at the Firestore boundary and reads the earlier boolean-completion schema for backward compatibility.
 
 ## Capabilities
 
@@ -17,7 +17,7 @@ Small task applications often mix UI state with database documents, trust unvali
 - Execution dashboard with active/completed/overdue counts and completion rate
 - Versioned task documents and migration support for the original schema
 - Firestore rules that enforce ownership, field types and input limits
-- Domain tests for serialization and legacy compatibility
+- Domain and provider tests using an in-memory repository test double
 
 ## Architecture
 
